@@ -1,10 +1,10 @@
-class MissingEnvironmentVariable(Exception):
-    """Исключение с ошибкой в переменной окружения."""
+class KeysNotExistError(Exception):
+    """Исключение с ошибкой отсутсвия ключей."""
 
     pass
 
 
-class KeysNotExist(Exception):
-    """Исключение с ошибкой отсутсвия ключей."""
+class WrongStatusError(Exception):
+    """Исключение с ошибкой некорректного статуса работы."""
 
     pass
