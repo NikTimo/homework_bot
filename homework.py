@@ -8,8 +8,6 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-import exceptions
-
 load_dotenv()
 
 
@@ -43,12 +41,7 @@ logger.addHandler(handler2)
 
 def check_tokens() -> bool:
     """Проверка существования переменных окружения."""
-    if not all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)):
-        logger.critical('Отсутсвует один или несколько токенов')
-        return False
-    else:
-        logger.info('Токены успешно проверены')
-        return True
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def send_message(bot, message):
@@ -92,25 +85,19 @@ def check_response(response) -> bool:
         f'Запущена функция проверки ответа API: '
         f'{check_response.__name__}'
     )
-    func_flag = True
     if not isinstance(response, dict):
-        func_flag = False
         raise TypeError(f'Неожиданный тип ответа: {type(response)}')
     if 'homeworks' not in response.keys():
-        func_flag = False
         raise KeyError('В ответе API отсутствуют ожидаемый ключ homeworks')
     if 'current_date' not in response.keys():
-        func_flag = False
         raise KeyError('В ответе API отсутствуют ожидаемый ключ current_date')
     if not isinstance(response['homeworks'], list):
-        func_flag = False
         raise TypeError(
             f'Неожиданный тип ответа [homeworks]: '
             f'{type(response["homeworks"])}'
         )
-    if func_flag:
-        logger.info('Ответ API корректен')
-    return func_flag
+    logger.info('Ответ API корректен')
+    return True
 
 
 def parse_status(homework: dict):
@@ -120,15 +107,15 @@ def parse_status(homework: dict):
         f'{parse_status.__name__}'
     )
     if 'homework_name' not in homework.keys():
-        raise exceptions.KeysNotExistError(
+        raise KeyError(
             'Ошибка: в словаре homework нет необходимого ключа "homework_name"'
         )
     if 'status' not in homework.keys():
-        raise exceptions.KeysNotExistError(
+        raise KeyError(
             'Ошибка: в словаре homework нет необходимого ключа "status"'
         )
     if homework['status'] not in HOMEWORK_VERDICTS.keys():
-        raise exceptions.WrongStatusError(
+        raise KeyError(
             'Недокументированный статус домашней работы'
         )
     homework_name = homework.get('homework_name')
@@ -139,31 +126,34 @@ def parse_status(homework: dict):
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens():
+    if not check_tokens():
+        logger.critical('Отсутсвует один или несколько токенов')
+    else:
+        logger.info('Токены успешно проверены')
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
         timestamp = int(time.time())
-        msg_list: list = ['0']
-    while True:
-        try:
-            response = get_api_answer(timestamp)
-            if (check_response(response) is True
-                    and len(response['homeworks']) != 0):
-                homework_last = response['homeworks'][0]
-                timestamp = response.get('current_date', timestamp)
-                message = parse_status(homework_last)
-            else:
-                message = 'Бот начал работу. Новые работы отсутсвуют.'
-                logger.debug(message)
-        except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logger.error(message, exc_info=True)
-        finally:
-            if msg_list[-1] == message:
-                logger.info('Измнений статусов работ и ошибок нет')
-            else:
-                send_message(bot, message)
-                msg_list.append(message)
-            time.sleep(RETRY_PERIOD)
+        last_msg: str = ''
+        while True:
+            try:
+                response = get_api_answer(timestamp)
+                if (check_response(response)
+                        and len(response['homeworks']) != 0):
+                    homework_last = response['homeworks'][0]
+                    timestamp = response.get('current_date', timestamp)
+                    message = parse_status(homework_last)
+                else:
+                    message = 'Бот начал работу. Новые работы отсутсвуют.'
+                    logger.debug(message)
+            except Exception as error:
+                message = f'Сбой в работе программы: {error}'
+                logger.error(message, exc_info=True)
+            finally:
+                if message == last_msg:
+                    logger.info('Измнений статусов работ и ошибок нет')
+                else:
+                    send_message(bot, message)
+                    last_msg = message
+                time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
