@@ -69,7 +69,6 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
     except requests.RequestException:
         logger.error('Ошибка запроса к API')
-#        raise requests.RequestException('Ошибка запроса к API')
     if response.status_code != HTTPStatus.OK:
         raise requests.exceptions.HTTPError(
             f'Статус-код не 200. Статус-код: {response.status_code}'
@@ -127,33 +126,32 @@ def parse_status(homework: dict):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        logger.critical('Отсутсвует один или несколько токенов')
-    else:
-        logger.info('Токены успешно проверены')
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        timestamp = int(time.time())
-        last_msg: str = ''
-        while True:
-            try:
-                response = get_api_answer(timestamp)
-                if (check_response(response)
-                        and len(response['homeworks']) != 0):
-                    homework_last = response['homeworks'][0]
-                    timestamp = response.get('current_date', timestamp)
-                    message = parse_status(homework_last)
-                else:
-                    message = 'Бот начал работу. Новые работы отсутсвуют.'
-                    logger.debug(message)
-            except Exception as error:
-                message = f'Сбой в работе программы: {error}'
-                logger.error(message, exc_info=True)
-            finally:
-                if message == last_msg:
-                    logger.info('Измнений статусов работ и ошибок нет')
-                else:
-                    send_message(bot, message)
-                    last_msg = message
-                time.sleep(RETRY_PERIOD)
+        sys.exit('Отсутсвует один или несколько токенов')
+    logger.info('Токены успешно проверены')
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
+    last_msg: str = ''
+    while True:
+        try:
+            response = get_api_answer(timestamp)
+            if (check_response(response)
+                    and len(response['homeworks']) != 0):
+                homework_last = response['homeworks'][0]
+                timestamp = response.get('current_date', timestamp)
+                message = parse_status(homework_last)
+            else:
+                message = 'Бот начал работу. Новые работы отсутсвуют.'
+                logger.debug(message)
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            logger.error(message, exc_info=True)
+        finally:
+            if message == last_msg:
+                logger.info('Измнений статусов работ и ошибок нет')
+            else:
+                send_message(bot, message)
+                last_msg = message
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
